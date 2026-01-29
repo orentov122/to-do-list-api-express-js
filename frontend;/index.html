@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TODO LIST</title>
+    <style>
+        body { background-color: black; font-family: 'Inter', sans-serif; color: white; display: flex; flex-direction: column; align-items: center; }
+        .title-block { text-align: center; margin: 30px 0; }
+        .input-block { margin-bottom: 30px; display: flex; gap: 10px; }
+        input { padding: 10px; border-radius: 8px; border: none; width: 300px; font-size: 16px; outline: none; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+        button { background: #54a8c2; border: none; color: white; padding: 8px 15px; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #3d7e92; }
+        button.active { background: white; color: #54a8c2; font-weight: bold; }
+        #stats { color: #888; margin-left: 15px; }
+        #tasks-container { width: 100%; display: flex; flex-direction: column; align-items: center; }
+        .todo-block { display: flex; justify-content: space-between; align-items: center; background-color: rgb(84, 168, 194); margin: 10px 0; padding: 15px 25px; width: 500px; border-radius: 15px; cursor: pointer; transition: all 0.3s ease; }
+        .todo-block:hover { transform: translateY(-5px); }
+        .todo-block.done { opacity: 0.4; background-color: #2d5a69; }
+        .todo-block.done h1 { text-decoration: line-through; }
+        .status-dot { width: 15px; height: 15px; border-radius: 50%; background: #fff; }
+        .done .status-dot { background: #00ff88; }
+        h1 { margin: 0; font-size: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="title-block">
+        <h2>TODO LIST</h2>
+    </div>
+
+    <div class="input-block">
+        <input type="text" id="taskInput" placeholder="Что нужно сделать?">
+        <button onclick="addTask()">Добавить</button>
+    </div>
+
+    <div class="controls">
+        <button id="btn-all" class="active" onclick="setFilter('all')">Все</button>
+        <button id="btn-active" onclick="setFilter('active')">В процессе</button>
+        <button id="btn-done" onclick="setFilter('done')">Выполненные</button>
+        <span id="stats">Загрузка...</span>
+    </div>
+
+    <div id="tasks-container"></div>
+
+    <script>
+        let currentFilter = 'all';
+        const API_URL = 'http://localhost:4200/tasks';
+
+        async function fetchAndRender() {
+            try {
+                const res = await fetch(API_URL);
+                const tasks = await res.json();
+                
+                const doneCount = tasks.filter(t => t.done).length;
+                document.getElementById('stats').innerText = `Выполнено: ${doneCount} из ${tasks.length}`;
+
+                const filteredTasks = tasks.filter(t => {
+                    if (currentFilter === 'active') return !t.done;
+                    if (currentFilter === 'done') return t.done;
+                    return true;
+                });
+
+                render(filteredTasks);
+            } catch (e) {
+                document.getElementById('tasks-container').innerHTML = 'Ошибка сервера';
+            }
+        }
+
+        function render(tasks) {
+            const container = document.getElementById('tasks-container');
+            container.innerHTML = '';
+            tasks.forEach(task => {
+                const div = document.createElement('div');
+                div.className = `todo-block ${task.done ? 'done' : ''}`;
+                div.innerHTML = `<h1>${task.text}</h1><div class="status-dot"></div>`;
+                div.onclick = () => toggleTask(task.id, task.done);
+                container.appendChild(div);
+            });
+        }
+
+        async function addTask() {
+            const input = document.getElementById('taskInput');
+            if (!input.value.trim()) return;
+            await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: input.value })
+            });
+            input.value = '';
+            fetchAndRender();
+        }
+
+        async function toggleTask(id, currentStatus) {
+            await fetch(`${API_URL}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ done: !currentStatus })
+            });
+            fetchAndRender();
+        }
+
+        function setFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.controls button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${filter === 'all' ? 'all' : filter === 'active' ? 'active' : 'done'}`).classList.add('active');
+            fetchAndRender();
+        }
+
+        fetchAndRender();
+    </script>
+</body>
+</html>
